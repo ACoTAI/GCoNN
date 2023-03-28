@@ -1,5 +1,5 @@
 # GCoNN
-This is an implementation of the [GCoNN (Graph ** Neural Networks)](https://arxiv.org/abs/1905.06214) model.
+This is an implementation of the [GCoNN (Graph ** Neural Networks)] model.
 
 Table of Contents
 =================
