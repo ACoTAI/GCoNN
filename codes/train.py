@@ -1,19 +1,19 @@
 import sys
+sys.path.append('/home/yf302/Desktop/Kai/GCNII/')
 import os
 import copy
-from datetime import datetime
 import time
 import numpy as np
 import random
 import argparse
-from shutil import copyfile
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
 from trainer import Trainer
-from gnn import GNNq, GNNp
+from gnn import (GNNpa, 
+                 GNNq)
 import loader
 
 parser = argparse.ArgumentParser()
@@ -36,6 +36,8 @@ parser.add_argument('--seed', type=int, default=1)
 parser.add_argument('--cuda', type=bool, default=torch.cuda.is_available())
 parser.add_argument('--cpu', action='store_true', help='Ignore CUDA.')
 parser.add_argument('--log', type=str, default='log.txt', help='log file for saving results')
+parser.add_argument('--drop_rate', type=float, default=0., help='node dropout rate for inference')
+
 
 args = parser.parse_args()
 
@@ -70,29 +72,31 @@ feature = loader.EntityFeature(file_name=feature_file, entity=[vocab_node, 0], f
 graph.to_symmetric(opt['self_link_weight'])
 feature.to_one_hot(binary=True)
 adj = graph.get_sparse_adjacency(opt['cuda'])
-
 with open(train_file, 'r') as fi:
     idx_train = [vocab_node.stoi[line.strip()] for line in fi]
 with open(dev_file, 'r') as fi:
     idx_dev = [vocab_node.stoi[line.strip()] for line in fi]
 with open(test_file, 'r') as fi:
     idx_test = [vocab_node.stoi[line.strip()] for line in fi]
-idx_all = list(range(opt['num_node']))
 
+idx_all = list(range(opt['num_node']))
 inputs = torch.Tensor(feature.one_hot)
 target = torch.LongTensor(label.itol)
 idx_train = torch.LongTensor(idx_train)
 idx_dev = torch.LongTensor(idx_dev)
 idx_test = torch.LongTensor(idx_test)
 idx_all = torch.LongTensor(idx_all)
+
 inputs_q = torch.zeros(opt['num_node'], opt['num_feature'])
 target_q = torch.zeros(opt['num_node'], opt['num_class'])
-inputs_p = torch.zeros(opt['num_node'], opt['num_feature']) # label feature should be replaced with neighbor attri
-target_p = torch.zeros(opt['num_node'], opt['num_class'])
-# init input for p
-inputs_p.copy_(inputs)
+inputs_pa = torch.zeros(opt['num_node'], opt['num_feature']) # attri propagation
+target_pa = torch.zeros(opt['num_node'], opt['num_class'])
+
+inputs_pa.copy_(inputs)
+inputs_q.copy_(inputs)
 
 if opt['cuda']:
+    adj = adj.cuda()
     inputs = inputs.cuda()
     target = target.cuda()
     idx_train = idx_train.cuda()
@@ -101,44 +105,42 @@ if opt['cuda']:
     idx_all = idx_all.cuda()
     inputs_q = inputs_q.cuda()
     target_q = target_q.cuda()
-    inputs_p = inputs_p.cuda()
-    target_p = target_p.cuda()
+    inputs_pa = inputs_pa.cuda()
+    target_pa = target_pa.cuda()
 
-gnnq = GNNq(opt, adj)
+adj_q = copy.deepcopy(adj)
+gnnq = GNNq(opt, adj_q)
 trainer_q = Trainer(opt, gnnq)
-adj_p = copy.deepcopy(adj).to_dense()
-adj_p[idx_train, idx_train] = 0.0
-adj_p = adj_p.to_sparse()
-gnnp = GNNp(opt, adj_p)
-trainer_p = Trainer(opt, gnnp)
+
+# removed self-loop
+adj_pa = copy.deepcopy(adj).to_dense()
+adj_pa[idx_train, idx_train] = 0.0
+adj_pa = adj_pa.to_sparse() 
+gnnpa = GNNpa(opt, adj_pa)
+trainer_pa = Trainer(opt, gnnpa)
 
 def init_q_data():
-    inputs_q.copy_(inputs)
     temp = torch.zeros(idx_train.size(0), target_q.size(1)).type_as(target_q)
     temp.scatter_(1, torch.unsqueeze(target[idx_train], 1), 1.0)
     target_q[idx_train] = temp
 
-def update_p_data():
+def update_pa_data():
     preds = trainer_q.predict(inputs_q, opt['tau'])
     if opt['draw'] == 'exp':
-        # inputs_p.copy_(preds)
-        target_p.copy_(preds)
+        target_pa.copy_(preds)
     elif opt['draw'] == 'max':
         idx_lb = torch.max(preds, dim=-1)[1]
-        # inputs_p.zero_().scatter_(1, torch.unsqueeze(idx_lb, 1), 1.0)
-        target_p.zero_().scatter_(1, torch.unsqueeze(idx_lb, 1), 1.0)
+        target_pa.zero_().scatter_(1, torch.unsqueeze(idx_lb, 1), 1.0)
     elif opt['draw'] == 'smp':
         idx_lb = torch.multinomial(preds, 1).squeeze(1)
-        # inputs_p.zero_().scatter_(1, torch.unsqueeze(idx_lb, 1), 1.0)
-        target_p.zero_().scatter_(1, torch.unsqueeze(idx_lb, 1), 1.0)
+        target_pa.zero_().scatter_(1, torch.unsqueeze(idx_lb, 1), 1.0)
     if opt['use_gold'] == 1:
         temp = torch.zeros(idx_train.size(0), target_q.size(1)).type_as(target_q)
         temp.scatter_(1, torch.unsqueeze(target[idx_train], 1), 1.0)
-        # inputs_p[idx_train] = temp
-        target_p[idx_train] = temp
+        target_pa[idx_train] = temp
 
 def update_q_data():
-    preds = trainer_p.predict(inputs_p)
+    preds = trainer_pa.predict(inputs_pa) # pesudolabeling by gnnpa
     target_q.copy_(preds)
     if opt['use_gold'] == 1:
         temp = torch.zeros(idx_train.size(0), target_q.size(1)).type_as(target_q)
@@ -150,9 +152,9 @@ def pre_train(epoches):
     init_q_data() # init label for GNNq training
     results = []
     for epoch in range(epoches):
-        loss = trainer_q.update_soft(inputs_q, target_q, idx_train)
-        _, preds, accuracy_dev = trainer_q.evaluate(inputs_q, target, idx_dev)
-        _, preds, accuracy_test = trainer_q.evaluate(inputs_q, target, idx_test)
+        loss = trainer_q.update_soft(inputs, target_q, idx_train)
+        _, preds, accuracy_dev = trainer_q.evaluate(inputs, target, idx_dev)
+        _, preds, accuracy_test = trainer_q.evaluate(inputs, target, idx_test)
         results += [(accuracy_dev, accuracy_test)]
         if accuracy_dev > best:
             best = accuracy_dev
@@ -161,51 +163,58 @@ def pre_train(epoches):
     trainer_q.optimizer.load_state_dict(state['optim'])
     return results
 
-def train_p(epoches):
-    update_p_data()
+
+def train_pa(epoches):
+    update_pa_data()
     results = []
+    best = 0.0
     for epoch in range(epoches):
-        loss = trainer_p.update_soft(inputs_p, target_p, idx_all)
-        _, preds, accuracy_dev = trainer_p.evaluate(inputs_p, target, idx_dev)
-        _, preds, accuracy_test = trainer_p.evaluate(inputs_p, target, idx_test)
+        loss = trainer_pa.update_soft(inputs_pa, target_pa, idx_all)
+        _, preds, accuracy_dev = trainer_pa.evaluate(inputs_pa, target, idx_dev)
+        _, preds, accuracy_test = trainer_pa.evaluate(inputs_pa, target, idx_test)
         results += [(accuracy_dev, accuracy_test)]
+        if accuracy_test > best:
+            best = accuracy_test
     return results
 
 def train_q(epoches):
-    update_q_data() # psudolabeling by GNNp for GNNq training
+    update_q_data() # psudolabeling for GNNq training
     results = []
-    best_acc = 0
+    best = 0.0
     for epoch in range(epoches):
         loss = trainer_q.update_soft(inputs_q, target_q, idx_all)
         _, preds, accuracy_dev = trainer_q.evaluate(inputs_q, target, idx_dev)
         _, preds, accuracy_test = trainer_q.evaluate(inputs_q, target, idx_test)
         results += [(accuracy_dev, accuracy_test)]
+        if accuracy_test > best:
+            best = accuracy_test
     return results
 
-base_results, q_results, p_results = [], [], []
+base_results, q_results, pa_results = [], [], []
 base_results += pre_train(opt['pre_epoch'])
 for k in range(opt['iter']):
-    trainer_p.model.load_state_dict(trainer_q.model.state_dict())
-    p_results += train_p(opt['epoch'])
+    trainer_pa.model.load_state_dict(trainer_q.model.state_dict())
+    pa_results += train_pa(opt['epoch'])
     q_results += train_q(opt['epoch'])
-
+    
 def get_accuracy(results):
     best_dev, acc_test = 0.0, 0.0
-    for d, t in results:
+    for (d, t) in results:
         if d > best_dev:
             best_dev, acc_test = d, t
     return acc_test
 
 base_acc = get_accuracy(base_results)
-p_acc = get_accuracy(p_results)
+pa_acc = get_accuracy(pa_results)
 q_acc = get_accuracy(q_results)
+
 with open(args.log, 'a+') as f:
-    line = '{:.3f}\t{:.3f}\t{:.3f}\n'.format(base_acc*100, p_acc*100, q_acc*100)
+    line = '{:.3f}\t{:.3f}\t{:.3f}\n'.format(base_acc*100, pa_acc*100, q_acc*100)
     print(line)
     f.writelines(line)
     f.close()
 
 if opt['save'] != '/':
     trainer_q.save(opt['save'] + '/gnnq.pt')
-    trainer_p.save(opt['save'] + '/gnnp.pt')
+    trainer_pa.save(opt['save'] + '/gnnpa.pt')
 
