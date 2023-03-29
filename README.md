@@ -49,8 +49,8 @@ Some codes of the project are from the following repo: [pygcn](https://github.co
 ## Citation
 Please consider citing the following paper if you find our codes helpful. Thank you!
 ```
-@inproceedings{GCoNN,
-title={GCoNN: Semi-Supervised Mixture Learning for Graph Neural Networks with Neighbor Dependency},
+@inproceedings{semi2023liu,
+title={Semi-Supervised Mixture Learning for Graph Neural Networks with Neighbor Dependency},
 author={Kai Liu, Hongbo Liu, Tao Wang, Guoqiang Hu, Tomas E Ward and C. L. Philip
 Chen},
 booktitle={IEEE TRANSACTIONS ON NEURAL NETWORKS AND LEARNING SYSTEMS},
