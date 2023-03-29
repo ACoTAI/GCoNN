@@ -18,7 +18,7 @@ Table of Contents
 ## Introduction
 Graph Neural Network is an effective architecture for semi-supervised Learning. However, data-driven mode of
 graph neural network raises the problems that models suffer from the limitations of incomplete attribute learning, insufficient structure capture and indistinguishability between node attribute and neighbor information, especially on label scarce data. In this paper, we propose a novel method, named **Graph Co-Neighbor Neural Network (GCoNN)**, which learns the situation of node attribute collaborating with neighbor information. The network is composed of two modules: $GCoNN_\Gamma$, models effective node
-representation and $GCoNN_{\mathring{\Gamma}}$, explores neighbor dependency. First, $GCoNN_\Gamma$ trains to establish the fundamental prototype for node representation on labeled data. Second, $GCoNN_{\mathring{\Gamma}}$Γ learns the neighbor dependency on unlabeled data through pseudo labels acquired by $GCoNN_\Gamma$. Third, $GCoNN_\Gamma$ re-trains to improve the ability of integration of node attribute and neighbor information by the feedback of $GCoNN_{\mathring{\Gamma}}$. Finally, iterate second and third steps until the models converge. We theoretically analysis the iteration process is a generalized expectation maximization framework which optimizing evidence lower bound by the amortised variational inference. 
+representation and $GCoNN_{\mathring{\Gamma}}$, explores neighbor dependency. First, $GCoNN_\Gamma$ trains to establish the fundamental prototype for node representation on labeled data. Second, $GCoNN_{\mathring{\Gamma}}$ learns the neighbor dependency on unlabeled data through pseudo labels acquired by $GCoNN_\Gamma$. Third, $GCoNN_\Gamma$ re-trains to improve the ability of integration of node attribute and neighbor information by the feedback of $GCoNN_{\mathring{\Gamma}}$. Finally, iterate second and third steps until the models converge. We theoretically analysis the iteration process is a generalized expectation maximization framework which optimizing evidence lower bound by the amortised variational inference. 
 <p align="middle"><img width="50%" src="figures/frame.jpg"/></p>
 
 ## Usage
@@ -51,7 +51,8 @@ Please consider citing the following paper if you find our codes helpful. Thank 
 ```
 @inproceedings{GCoNN,
 title={GCoNN: Semi-Supervised Mixture Learning for Graph Neural Networks with Neighbor Dependency},
-author={Kai, Liu and Tao, Seán and Xindong},
+author={Kai Liu, Hongbo Liu, Tao Wang, Guoqiang Hu, Tomas E Ward and C. L. Philip
+Chen},
 booktitle={IEEE TRANSACTIONS ON NEURAL NETWORKS AND LEARNING SYSTEMS},
 pages={**},
 year={**}
