@@ -53,6 +53,7 @@ Please consider citing the following paper if you find our codes helpful. Thank 
 title={Semi-Supervised Mixture Learning for Graph Neural Networks with Neighbor Dependency},
 author={Liu, Kai and Liu, Hongbo and Wang, tao and Hu, Guoqiang and Ward, Tomas E and Chen, C. L. Philip},
 journal={IEEE Transactions on Neural Networks and Learning Systems},
+doi={10.1109/TNNLS.2023.3263463},
 pages={**},
 year={**}
 }
