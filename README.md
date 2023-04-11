@@ -1,5 +1,5 @@
 # GCoNN
-This is an implementation of the [GCoNN (Graph Co-Neighbor Neural Networks)(https://arxiv.org/abs/1905.06214)] model.
+This is an implementation of the [GCoNN (Graph Co-Neighbor Neural Networks)](https://doi.org/10.1109/TNNLS.2023.3263463) model.
 
 Table of Contents
 =================
